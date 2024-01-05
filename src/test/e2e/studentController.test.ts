@@ -1,13 +1,18 @@
-import { StudentService } from "../../services/studentService";
-import { databaseSetup } from "../../setup/databaseSetup";
+import request from "supertest";
+import { TestContext, e2ETestSetup } from "../utils/testUtils";
 
-describe("StudentService", () => {
-	beforeAll(() => {
-		databaseSetup();
+describe("StudentController", () => {
+	let context: TestContext;
+	beforeAll(async () => {
+		context = await e2ETestSetup();
 	});
 	test("Should return student with id 42", async () => {
-		const student = await StudentService.getById(42);
-		expect(student).not.toBeUndefined();
-		expect(student?.id).toBe(42);
+		const response = await request(context.express.app)
+			.get("/api/userOfTheMonth")
+			.expect("Content-Type", /json/)
+			.expect(200);
+		const body: { name: string } = response.body;
+		expect(body).toBeDefined();
+		expect(body.name).toHaveLength(5);
 	});
 });
