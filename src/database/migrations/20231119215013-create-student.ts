@@ -1,7 +1,8 @@
-import { DataTypes, QueryInterface, Sequelize } from "sequelize";
+import { DataTypes } from "sequelize";
+import { MigrationContext } from "../migrationContext";
 
-export async function up(queryInterface: QueryInterface, _sequelize: Sequelize) {
-	await queryInterface.createTable("Students", {
+export async function up({ context }: MigrationContext) {
+	await context.createTable("Students", {
 		id: {
 			allowNull: false,
 			autoIncrement: true,
@@ -29,6 +30,6 @@ export async function up(queryInterface: QueryInterface, _sequelize: Sequelize) 
 		}
 	});
 }
-export async function down(queryInterface: QueryInterface, _sequelize: Sequelize) {
-	await queryInterface.dropTable("Students");
+export async function down({ context }: MigrationContext) {
+	await context.dropTable("Students");
 }

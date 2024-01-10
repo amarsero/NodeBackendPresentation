@@ -1,6 +1,9 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, unlink, writeFile, readFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile, readFile } from "node:fs/promises";
 import { createInterface } from "node:readline/promises";
+import { databaseSetup } from "./src/setup/databaseSetup";
+import { Umzug, SequelizeStorage } from "umzug";
+import { Sequelize } from "sequelize-typescript";
 
 export async function build() {
 	await runCommand(["npx", "tsc"]);
@@ -18,30 +21,47 @@ export async function buildRun() {
 	await runCommand(["node", "index.js"], "/dist");
 }
 
-const sequelizePaths = ["--config", "./database/config/config.json",
-	"--migrations-path", "./database/migrations/",
-	"--seeders-path", "./database/seeders/",];
+let dbConnect: Sequelize | undefined = undefined;
+async function getDatabaseConnection() {
+	if (dbConnect === undefined) {
+		const sequelize = await databaseSetup();
+		if (sequelize === undefined) {
+			throw new Error("Couldn't connect to database");
+		}
+		sequelize.options.logging = false;
+		dbConnect = sequelize;
+	}
+	return dbConnect as Sequelize;
+}
+
+async function createMigrationHelper(path: string) {
+	const sequelize = await getDatabaseConnection();
+	const migration = new Umzug({
+		migrations: { glob: path },
+		context: sequelize.getQueryInterface(),
+		storage: new SequelizeStorage({ sequelize }),
+		logger: console,
+	});
+	return migration;
+}
 
 export async function migrateUp() {
-	await build();
-	await runCommand(["npx", "sequelize-cli", "db:migrate", ...sequelizePaths], "/dist");
+	const seeder = await createMigrationHelper("./src/database/migrations/*.[tj]s");
+	await seeder.up();
 }
 
 export async function migrateRecreate() {
-	await askConfirmation("You are going to drop and create the database. Are you sure?");
-	await build();
-	const usingSqlite = true;
-	if (usingSqlite) {
-		try {
-			await unlink("dist/db.sqlite3");
-		} catch (error) {
-			console.error("Database not found dist/db.sqlite3");
-		}
-	} else {
-		await runCommand(["npx", "sequelize-cli", "db:drop", ...sequelizePaths], "/dist");
-	}
-	await runCommand(["npx", "sequelize-cli", "db:migrate", ...sequelizePaths], "/dist");
-	await runCommand(["npx", "sequelize-cli", "db:seed:all", ...sequelizePaths], "/dist");
+	await askConfirmation("You are going to drop and recreate the database. Are you sure?");
+
+	const sequelize = await getDatabaseConnection();
+	await sequelize.drop();
+	// Drop table that has the migrations log
+	await sequelize.dropSchema("SequelizeMeta", {});
+
+	await migrateUp();
+
+	const seeder = await createMigrationHelper("./src/database/seeders/*.[tj]s");
+	await seeder.up();
 }
 
 export async function migrationCreate() {

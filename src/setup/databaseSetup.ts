@@ -13,6 +13,7 @@ export async function databaseSetup() {
 		});
 		await sequelize.authenticate();
 		log.info("Connected to the database successfully");
+		return sequelize;
 	} catch (error) {
 		log.error("Unable to connect to the database:", error);
 	}
